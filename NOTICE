@@ -1,0 +1,18 @@
+@vantra-design/screenreader-empathy
+Copyright 2026 Vantra Design
+
+This product is licensed under the Apache License, Version 2.0.
+You may obtain a copy of the license at:
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+This product includes or depends on the following third-party components:
+
+- kokoro-js (Apache-2.0) — https://github.com/niconielsen/kokoro-js
+  Used for local text-to-speech playback
+
+- @mlc-ai/web-llm (Apache-2.0) — https://github.com/mlc-ai/web-llm
+  Used for local AI commentary generation
+
+- @vantra-design/local-inference (Apache-2.0) — https://github.com/vantradesign/vantra-local-inference
+  Shared model loading and caching infrastructure

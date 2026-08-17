@@ -1,0 +1,12 @@
+packages:
+  - 'vue'
+
+autoInstallPeers: true
+strictPeerDependencies: false
+
+allowBuilds:
+  esbuild: true
+  onnxruntime-node: true
+  protobufjs: true
+  sharp: true
+

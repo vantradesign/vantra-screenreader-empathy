@@ -1,0 +1,22 @@
+import { defineConfig } from 'tsup'
+
+export default defineConfig({
+  entry: {
+    'index': 'src/index.ts',
+    'core/index': 'src/core/index.ts',
+  },
+  format: ['esm', 'cjs'],
+  dts: true,
+  sourcemap: true,
+  clean: true,
+  treeshake: true,
+  target: 'es2022',
+  outExtension({ format }) {
+    return { js: format === 'cjs' ? '.cjs' : '.js' }
+  },
+  external: [
+    '@vantra-design/local-inference',
+    'kokoro-js',
+    '@mlc-ai/web-llm',
+  ],
+})

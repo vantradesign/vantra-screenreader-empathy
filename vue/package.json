@@ -1,0 +1,40 @@
+{
+  "name": "@vantra-design/screenreader-empathy-vue",
+  "version": "0.1.0",
+  "description": "Vue 3 components for @vantra-design/screenreader-empathy — screen reader empathy simulation with TTS playback and AI commentary.",
+  "license": "Apache-2.0",
+  "author": "Vantra Design <vantra@kauper.co>",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "echo 'Vue package not yet implemented'",
+    "typecheck": "echo 'Vue package not yet implemented'",
+    "test": "echo 'Vue package not yet implemented'"
+  },
+  "peerDependencies": {
+    "@vantra-design/screenreader-empathy": "workspace:^",
+    "vue": "^3.4.0"
+  }
+}
