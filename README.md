@@ -81,6 +81,15 @@ After the one-time model download, **zero network calls** are made.
 
 ---
 
+## Packages
+
+| Package | Description |
+| --- | --- |
+| [`@vantra-design/screenreader-empathy`](.) | Core — headless analysis (`./core`) and browser playback + AI commentary (`.`) |
+| [`@vantra-design/screenreader-empathy-vue`](./vue) | Vue 3 components and composables (Phase 2 — placeholder) |
+
+---
+
 ## Development
 
 ```bash
