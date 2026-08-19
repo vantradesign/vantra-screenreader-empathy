@@ -11,7 +11,8 @@ export { analyzeAccessibilityFlow } from './traversal.js'
 export { computeAccessibleName } from './accessible-name.js'
 export { computeReadingOrder } from './reading-order.js'
 export { isLandmark, getLandmarkRole } from './landmarks.js'
-export { resolveRole, getHeadingLevel, detectFlags, detectPageFlags } from './deterministic-flags.js'
+export { resolveRole, getHeadingLevel, detectFlags, detectPageFlags, detectEntryPatternFlags } from './deterministic-flags.js'
+export { getStructureReport } from './structure-report.js'
 
 // Types
 export type {
@@ -23,6 +24,11 @@ export type {
   TraversalSummary,
   TraversalResult,
   AnalyzeOptions,
+  LandmarkInfo,
+  HeadingNode,
+  StructureBand,
+  StructureReport,
+  StructureIssue,
 } from './types.js'
 
 export type { FlagContext } from './deterministic-flags.js'

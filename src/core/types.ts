@@ -22,6 +22,25 @@ export type DeterministicFlagCode =
   | 'generic-link-text'
   | 'no-lang-attribute'
   | 'tabindex-positive'
+  // IA / UX structure flags
+  | 'no-h1'
+  | 'multiple-h1'
+  | 'no-nav-landmark'
+  | 'duplicate-landmark-no-label'
+  | 'orphaned-content'
+  | 'no-skip-link'
+  | 'landmark-nesting-violation'
+  | 'content-before-main'
+  | 'flat-structure'
+  | 'wall-of-text'
+  | 'identical-links-different-href'
+  | 'adjacent-duplicate-links'
+  | 'table-no-headers'
+  | 'table-no-caption'
+  | 'fieldset-no-legend'
+  | 'form-no-submit'
+  | 'no-title'
+  | 'viewport-no-zoom'
 
 export interface DeterministicFlag {
   code: DeterministicFlagCode
@@ -120,4 +139,49 @@ export interface AiComment {
 export interface HighlightOptions {
   color?: string
   outline?: boolean
+}
+
+// ── Structure report ──
+
+export interface LandmarkInfo {
+  role: string
+  label: string
+  selector: string
+}
+
+export interface HeadingNode {
+  level: number
+  name: string
+  index: number
+  children: HeadingNode[]
+}
+
+export type StructureBand = 'none' | 'minimal' | 'basic' | 'solid' | 'thorough'
+
+export interface StructureReport {
+  /** Overall structure quality band */
+  band: StructureBand
+  /** Numeric score 0–100 */
+  score: number
+
+  /** Heading outline as a tree */
+  headingTree: HeadingNode[]
+  /** Flat list of landmarks */
+  landmarks: LandmarkInfo[]
+
+  /** Number of readable elements before the first <main> landmark */
+  elementsBeforeMain: number
+  /** Percentage of content outside any landmark */
+  orphanedContentPercent: number
+
+  /** IA-specific flags (subset of all flags, reframed) */
+  issues: StructureIssue[]
+}
+
+export interface StructureIssue {
+  code: DeterministicFlagCode
+  severity: DeterministicFlag['severity']
+  message: string
+  /** Number of occurrences */
+  count: number
 }

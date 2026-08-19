@@ -1,5 +1,6 @@
 packages:
   - 'vue'
+  - 'demo'
 
 autoInstallPeers: true
 strictPeerDependencies: false

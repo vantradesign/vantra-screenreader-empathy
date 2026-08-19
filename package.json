@@ -59,6 +59,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "demo": "pnpm --filter screenreader-empathy-demo dev",
     "clean": "rm -rf dist coverage",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -19,6 +19,7 @@ import { computeReadingOrder } from './reading-order.js'
 import { isLandmark } from './landmarks.js'
 import {
   detectFlags,
+  detectEntryPatternFlags,
   detectPageFlags,
   getHeadingLevel,
   resolveRole,
@@ -88,6 +89,9 @@ export function analyzeAccessibilityFlow(
   // Page-level flags
   const pageFlags = detectPageFlags(root, hasMainLandmark)
 
+  // Entry-pattern flags (need full entries array)
+  const entryPatternFlags = detectEntryPatternFlags(entries)
+
   // Build summary
   const summary = buildSummary(entries, pageFlags)
 
@@ -95,6 +99,12 @@ export function analyzeAccessibilityFlow(
   // Per spec, page-level flags go into the summary.flagCount
   for (const pf of pageFlags) {
     const code = pf.code as DeterministicFlagCode
+    summary.flagCount[code] = (summary.flagCount[code] ?? 0) + 1
+  }
+
+  // Add entry-pattern flags to summary
+  for (const epf of entryPatternFlags) {
+    const code = epf.code as DeterministicFlagCode
     summary.flagCount[code] = (summary.flagCount[code] ?? 0) + 1
   }
 

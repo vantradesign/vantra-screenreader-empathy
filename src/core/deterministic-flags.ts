@@ -6,7 +6,7 @@
  * will never hallucinate, and require no model.
  */
 
-import type { DeterministicFlag, DeterministicFlagCode } from './types.js'
+import type { DeterministicFlag, DeterministicFlagCode, TraversalEntry } from './types.js'
 
 // ── Helpers ──
 
@@ -45,6 +45,10 @@ export function detectFlags(
   checkMissingAltText(element, flags)
   checkGenericLinkText(accessibleName, role, flags)
   checkTabindexPositive(element, flags)
+  checkFieldsetNoLegend(element, flags)
+  checkTableNoHeaders(element, flags)
+  checkTableNoCaption(element, flags)
+  checkFormNoSubmit(element, flags)
 
   return flags
 }
@@ -58,6 +62,11 @@ export function detectPageFlags(
 ): DeterministicFlag[] {
   const flags: DeterministicFlag[] = []
 
+  const isDocument = 'documentElement' in root
+  const doc = isDocument ? root as Document : root.ownerDocument
+  const queryRoot = isDocument ? root as Document : root.ownerDocument
+  const html = doc?.documentElement
+
   // Missing main landmark
   if (!hasMainLandmark) {
     flags.push(flag(
@@ -68,10 +77,6 @@ export function detectPageFlags(
   }
 
   // Missing lang attribute
-  const isDocument = 'documentElement' in root
-  const doc = isDocument ? root as Document : root.ownerDocument
-  const html = doc?.documentElement
-
   if (html && !html.getAttribute('lang')?.trim()) {
     flags.push(flag(
       'no-lang-attribute',
@@ -81,24 +86,94 @@ export function detectPageFlags(
   }
 
   // Duplicate IDs
-  const idMap = new Map<string, number>()
-  const queryRoot = isDocument ? root as Document : root.ownerDocument
-  if (!queryRoot) return flags
-  const allWithId = queryRoot.querySelectorAll('[id]')
+  if (queryRoot) {
+    const idMap = new Map<string, number>()
+    const allWithId = queryRoot.querySelectorAll('[id]')
 
-  for (const el of allWithId) {
-    const id = el.getAttribute('id')
-    if (id) {
-      idMap.set(id, (idMap.get(id) ?? 0) + 1)
+    for (const el of allWithId) {
+      const id = el.getAttribute('id')
+      if (id) {
+        idMap.set(id, (idMap.get(id) ?? 0) + 1)
+      }
+    }
+
+    for (const [id, count] of idMap) {
+      if (count > 1) {
+        flags.push(flag(
+          'duplicate-id',
+          'serious',
+          `ID "${id}" is used ${count} times. This breaks aria-labelledby and label[for] references.`,
+        ))
+      }
     }
   }
 
-  for (const [id, count] of idMap) {
-    if (count > 1) {
+  if (!queryRoot) return flags
+
+  // ── IA / UX page-level checks ──
+
+  // no-h1 / multiple-h1
+  const h1s = queryRoot.querySelectorAll('h1, [role="heading"][aria-level="1"]')
+  if (h1s.length === 0) {
+    flags.push(flag(
+      'no-h1',
+      'serious',
+      'Page has no h1. The document has no clear primary title — heading navigation starts without a root.',
+    ))
+  } else if (h1s.length > 1) {
+    flags.push(flag(
+      'multiple-h1',
+      'moderate',
+      `Page has ${h1s.length} h1 elements. This creates an ambiguous document title — which one is the page about?`,
+    ))
+  }
+
+  // no-nav-landmark
+  const navs = queryRoot.querySelectorAll('nav, [role="navigation"]')
+  if (navs.length === 0) {
+    flags.push(flag(
+      'no-nav-landmark',
+      'moderate',
+      'Page has no <nav> landmark. There is no marked navigation region for users to jump to.',
+    ))
+  }
+
+  // duplicate-landmark-no-label
+  checkDuplicateLandmarksNoLabel(queryRoot, flags)
+
+  // no-skip-link
+  checkNoSkipLink(queryRoot, flags)
+
+  // landmark-nesting-violation
+  checkLandmarkNesting(queryRoot, flags)
+
+  // flat-structure
+  checkFlatStructure(queryRoot, flags)
+
+  // no-title
+  if (isDocument) {
+    const title = (root as Document).title?.trim()
+    if (!title) {
       flags.push(flag(
-        'duplicate-id',
+        'no-title',
         'serious',
-        `ID "${id}" is used ${count} times. This breaks aria-labelledby and label[for] references.`,
+        'Page has no <title>. The browser tab, bookmarks, and search results have no name for this page.',
+      ))
+    }
+  }
+
+  // viewport-no-zoom
+  const viewport = queryRoot.querySelector('meta[name="viewport"]')
+  if (viewport) {
+    const content = viewport.getAttribute('content')?.toLowerCase() ?? ''
+    if (
+      /user-scalable\s*=\s*no/.test(content) ||
+      /maximum-scale\s*=\s*1(\.0)?(?!\d)/.test(content)
+    ) {
+      flags.push(flag(
+        'viewport-no-zoom',
+        'serious',
+        'Viewport meta disables zoom. Users who need to enlarge text cannot do so.',
       ))
     }
   }
@@ -322,6 +397,363 @@ function checkTabindexPositive(
       `tabindex="${value}" overrides natural tab order. This is almost always a mistake.`,
     ))
   }
+}
+
+function checkFieldsetNoLegend(
+  element: Element,
+  flags: DeterministicFlag[],
+): void {
+  if (element.tagName.toLowerCase() !== 'fieldset') return
+  const legend = element.querySelector('legend')
+  if (!legend || !legend.textContent?.trim()) {
+    flags.push(flag(
+      'fieldset-no-legend',
+      'moderate',
+      '<fieldset> has no <legend>. Grouped form controls have no group label — users cannot tell what this group is for.',
+    ))
+  }
+}
+
+function checkTableNoHeaders(
+  element: Element,
+  flags: DeterministicFlag[],
+): void {
+  if (element.tagName.toLowerCase() !== 'table') return
+  // Ignore layout tables
+  const role = element.getAttribute('role')
+  if (role === 'presentation' || role === 'none') return
+  const ths = element.querySelectorAll('th')
+  if (ths.length === 0) {
+    flags.push(flag(
+      'table-no-headers',
+      'serious',
+      'Data table has no <th> elements. Screen readers cannot associate cells with their column or row headers.',
+    ))
+  }
+}
+
+function checkTableNoCaption(
+  element: Element,
+  flags: DeterministicFlag[],
+): void {
+  if (element.tagName.toLowerCase() !== 'table') return
+  const role = element.getAttribute('role')
+  if (role === 'presentation' || role === 'none') return
+  const caption = element.querySelector('caption')
+  const ariaLabel = element.getAttribute('aria-label')?.trim()
+  const ariaLabelledby = element.getAttribute('aria-labelledby')?.trim()
+  if (!caption?.textContent?.trim() && !ariaLabel && !ariaLabelledby) {
+    flags.push(flag(
+      'table-no-caption',
+      'moderate',
+      'Data table has no <caption> or accessible name. Users encounter a table with no description of what data it contains.',
+    ))
+  }
+}
+
+function checkFormNoSubmit(
+  element: Element,
+  flags: DeterministicFlag[],
+): void {
+  if (element.tagName.toLowerCase() !== 'form') return
+  const submit = element.querySelector(
+    'input[type="submit"], button[type="submit"], button:not([type])',
+  )
+  if (!submit) {
+    flags.push(flag(
+      'form-no-submit',
+      'moderate',
+      '<form> has no submit button. Users may not know how to submit the form.',
+    ))
+  }
+}
+
+// ── Page-level IA helpers ──
+
+const LANDMARK_ROLE_TAGS: Record<string, string> = {
+  nav: 'navigation',
+  main: 'main',
+  aside: 'complementary',
+  header: 'banner',
+  footer: 'contentinfo',
+  section: 'region',
+  form: 'form',
+  search: 'search',
+}
+
+const NON_NESTABLE_LANDMARKS = new Set(['main', 'banner', 'contentinfo'])
+
+function resolveLandmarkRole(element: Element): string | null {
+  const explicit = element.getAttribute('role')?.trim().toLowerCase()
+  if (explicit && [
+    'banner', 'complementary', 'contentinfo', 'form', 'main',
+    'navigation', 'region', 'search',
+  ].includes(explicit)) {
+    return explicit
+  }
+  return LANDMARK_ROLE_TAGS[element.tagName.toLowerCase()] ?? null
+}
+
+function checkDuplicateLandmarksNoLabel(
+  root: Document,
+  flags: DeterministicFlag[],
+): void {
+  const landmarksByRole = new Map<string, Element[]>()
+  const selectors = 'nav, main, aside, header, footer, section, form, search, [role="navigation"], [role="main"], [role="complementary"], [role="banner"], [role="contentinfo"], [role="region"], [role="form"], [role="search"]'
+  const elements = root.querySelectorAll(selectors)
+
+  for (const el of elements) {
+    const role = resolveLandmarkRole(el)
+    if (!role) continue
+    const arr = landmarksByRole.get(role) ?? []
+    arr.push(el)
+    landmarksByRole.set(role, arr)
+  }
+
+  for (const [role, els] of landmarksByRole) {
+    if (els.length < 2) continue
+    const unlabeled = els.filter((el) => {
+      const label = el.getAttribute('aria-label')?.trim()
+      const labelledby = el.getAttribute('aria-labelledby')?.trim()
+      const title = el.getAttribute('title')?.trim()
+      return !label && !labelledby && !title
+    })
+    if (unlabeled.length >= 2) {
+      flags.push(flag(
+        'duplicate-landmark-no-label',
+        'serious',
+        `${els.length} "${role}" landmarks exist but ${unlabeled.length} have no label. Users cannot distinguish between them.`,
+      ))
+    }
+  }
+}
+
+function checkNoSkipLink(
+  root: Document,
+  flags: DeterministicFlag[],
+): void {
+  // Look for a link whose href starts with # in the first few elements
+  const body = root.body
+  if (!body) return
+
+  const firstLinks: Element[] = []
+  const walker = root.createTreeWalker(body, 1 /* SHOW_ELEMENT */)
+  let count = 0
+  let node = walker.nextNode() as Element | null
+  while (node && count < 10) {
+    if (node.tagName.toLowerCase() === 'a' && node.getAttribute('href')?.startsWith('#')) {
+      firstLinks.push(node)
+    }
+    count++
+    node = walker.nextNode() as Element | null
+  }
+
+  const hasSkipLink = firstLinks.some((link) => {
+    const href = link.getAttribute('href') ?? ''
+    const text = link.textContent?.toLowerCase() ?? ''
+    return (
+      href === '#main' ||
+      href === '#main-content' ||
+      href === '#content' ||
+      text.includes('skip') ||
+      text.includes('jump to') ||
+      text.includes('zum inhalt')
+    )
+  })
+
+  if (!hasSkipLink) {
+    flags.push(flag(
+      'no-skip-link',
+      'moderate',
+      'No skip navigation link found. Keyboard users must tab through all navigation before reaching content.',
+    ))
+  }
+}
+
+function checkLandmarkNesting(
+  root: Document,
+  flags: DeterministicFlag[],
+): void {
+  const selectors = 'main, [role="main"], header, [role="banner"], footer, [role="contentinfo"]'
+  const elements = root.querySelectorAll(selectors)
+
+  for (const el of elements) {
+    const role = resolveLandmarkRole(el)
+    if (!role || !NON_NESTABLE_LANDMARKS.has(role)) continue
+
+    // Walk up to see if there's an ancestor with the same landmark role
+    let parent = el.parentElement
+    while (parent) {
+      const parentRole = resolveLandmarkRole(parent)
+      if (parentRole === role) {
+        flags.push(flag(
+          'landmark-nesting-violation',
+          'serious',
+          `A "${role}" landmark is nested inside another "${role}" landmark. This creates a broken document structure.`,
+        ))
+        break
+      }
+      parent = parent.parentElement
+    }
+  }
+}
+
+function checkFlatStructure(
+  root: Document,
+  flags: DeterministicFlag[],
+): void {
+  const body = root.body
+  if (!body) return
+
+  const headings = body.querySelectorAll('h1, h2, h3, h4, h5, h6')
+  const landmarks = body.querySelectorAll(
+    'main, nav, aside, header, footer, section[aria-label], section[aria-labelledby], [role="navigation"], [role="main"], [role="complementary"], [role="banner"], [role="contentinfo"], [role="region"], [role="search"]',
+  )
+
+  if (headings.length === 0 && landmarks.length === 0) {
+    flags.push(flag(
+      'flat-structure',
+      'serious',
+      'Page has no headings and no landmarks. The content is a flat block with no navigable structure.',
+    ))
+  }
+}
+
+/**
+ * Detect IA flags that require the full entries array.
+ * Called after traversal entries are built.
+ */
+export function detectEntryPatternFlags(
+  entries: TraversalEntry[],
+): DeterministicFlag[] {
+  const flags: DeterministicFlag[] = []
+
+  checkContentBeforeMain(entries, flags)
+  checkOrphanedContent(entries, flags)
+  checkIdenticalLinksDifferentHref(entries, flags)
+  checkAdjacentDuplicateLinks(entries, flags)
+  checkWallOfText(entries, flags)
+
+  return flags
+}
+
+function checkContentBeforeMain(
+  entries: TraversalEntry[],
+  flags: DeterministicFlag[],
+): void {
+  const mainIndex = entries.findIndex((e) => e.role === 'main')
+  if (mainIndex < 0) return // no main — already flagged by missing-landmark
+  // Count non-landmark, non-navigation entries before main
+  const contentBefore = entries.slice(0, mainIndex).filter(
+    (e) => !e.isLandmark && e.role !== 'navigation',
+  ).length
+  if (contentBefore > 20) {
+    flags.push(flag(
+      'content-before-main',
+      'moderate',
+      `${contentBefore} elements appear before the <main> landmark. Users must wade through significant content before reaching the primary area.`,
+    ))
+  }
+}
+
+function checkOrphanedContent(
+  entries: TraversalEntry[],
+  flags: DeterministicFlag[],
+): void {
+  if (entries.length === 0) return
+  // An entry is orphaned if its selector doesn't pass through any landmark
+  // Heuristic: entries not inside main, nav, aside, header, footer, section, form, search
+  const landmarkSelectors = ['main', 'nav', 'aside', 'header', 'footer', 'search']
+  const orphaned = entries.filter((e) => {
+    const sel = e.selector.toLowerCase()
+    return !e.isLandmark && !landmarkSelectors.some((l) => sel.includes(` ${l}`) || sel.startsWith(l) || sel.includes(`${l} `) || sel.includes(`${l}>`) || sel.includes(`${l}#`) || sel.includes(`${l}:`) || sel.includes(`${l}.`))
+  })
+  const percent = Math.round((orphaned.length / entries.length) * 100)
+  if (percent > 50 && entries.length > 5) {
+    flags.push(flag(
+      'orphaned-content',
+      'moderate',
+      `${percent}% of content (${orphaned.length} of ${entries.length} elements) is outside any landmark region. Landmark navigation will skip most of the page.`,
+    ))
+  }
+}
+
+function checkIdenticalLinksDifferentHref(
+  entries: TraversalEntry[],
+  flags: DeterministicFlag[],
+): void {
+  const linksByText = new Map<string, Set<string>>()
+  for (const e of entries) {
+    if (e.role !== 'link' || !e.accessibleName.trim()) continue
+    const key = e.accessibleName.toLowerCase().trim()
+    const href = extractHref(e.htmlSnippet)
+    if (!href) continue
+    const set = linksByText.get(key) ?? new Set()
+    set.add(href)
+    linksByText.set(key, set)
+  }
+  for (const [text, hrefs] of linksByText) {
+    if (hrefs.size > 1) {
+      flags.push(flag(
+        'identical-links-different-href',
+        'moderate',
+        `${hrefs.size} links with text "${text}" point to different destinations. Users navigating by link list cannot tell them apart.`,
+      ))
+    }
+  }
+}
+
+function checkAdjacentDuplicateLinks(
+  entries: TraversalEntry[],
+  flags: DeterministicFlag[],
+): void {
+  let count = 0
+  for (let i = 0; i < entries.length - 1; i++) {
+    const a = entries[i]!
+    const b = entries[i + 1]!
+    if (a.role !== 'link' || b.role !== 'link') continue
+    const hrefA = extractHref(a.htmlSnippet)
+    const hrefB = extractHref(b.htmlSnippet)
+    if (hrefA && hrefB && hrefA === hrefB && a.accessibleName !== b.accessibleName) {
+      count++
+    }
+  }
+  if (count > 0) {
+    flags.push(flag(
+      'adjacent-duplicate-links',
+      'moderate',
+      `${count} adjacent link pair(s) point to the same destination (e.g. image + text link). These create redundant tab stops.`,
+    ))
+  }
+}
+
+function checkWallOfText(
+  entries: TraversalEntry[],
+  flags: DeterministicFlag[],
+): void {
+  // Count consecutive non-heading, non-landmark text entries
+  let streak = 0
+  let maxStreak = 0
+  for (const e of entries) {
+    if (e.role === 'heading' || e.isLandmark) {
+      streak = 0
+    } else {
+      streak++
+      if (streak > maxStreak) maxStreak = streak
+    }
+  }
+  if (maxStreak > 30) {
+    flags.push(flag(
+      'wall-of-text',
+      'moderate',
+      `${maxStreak} consecutive elements without a heading or landmark break. Long runs of content without structure are hard to navigate.`,
+    ))
+  }
+}
+
+function extractHref(htmlSnippet: string): string | null {
+  const match = htmlSnippet.match(/href=["']([^"']*)["']/i)
+  return match?.[1] ?? null
 }
 
 // ── Utilities ──
