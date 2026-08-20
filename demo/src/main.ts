@@ -1,4 +1,9 @@
-import { analyzeAccessibilityFlow, getStructureReport } from '@vantra-design/screenreader-empathy/core'
+import {
+  analyzeAccessibilityFlow,
+  formatEntryForSpeech,
+  formatRole,
+  getStructureReport,
+} from '@vantra-design/screenreader-empathy/core'
 import type {
   HeadingNode,
   StructureReport,
@@ -669,56 +674,27 @@ function renderHeadingNode(node: HeadingNode): string {
   `
 }
 
-// ── Announcement formatting (mirrors formatEntryForSpeech from browser module) ──
+// ── Announcement formatting (shared from core/speech.ts) ──
 
-const ROLE_LABELS: Record<string, string> = {
-  button: 'button', link: 'link', checkbox: 'checkbox', radio: 'radio button',
-  tab: 'tab', switch: 'switch', textbox: 'edit text', listbox: 'pop-up button',
-  slider: 'slider', searchbox: 'search text field', spinbutton: 'stepper',
-  navigation: 'navigation', main: 'main', banner: 'banner',
-  contentinfo: 'content info', complementary: 'complementary',
-  form: 'form', search: 'search', region: 'region',
-}
-
-const ROLE_AFTER = new Set(['button', 'link', 'checkbox', 'radio', 'tab', 'switch'])
-const FORM_CONTROLS = new Set(['textbox', 'listbox', 'slider', 'searchbox', 'spinbutton'])
+/** Roles where the display shows the role label instead of "missing name". */
 const STRUCTURAL_ROLES = new Set([
   'navigation', 'main', 'banner', 'contentinfo', 'complementary',
   'form', 'search', 'region', 'list', 'table', 'group', 'separator',
   'row', 'cell', 'generic',
 ])
 
-function formatAnnouncement(entry: TraversalResult['entries'][number]): string {
-  const { role, accessibleName, level, isLandmark } = entry
-  const rl = ROLE_LABELS[role] ?? role
-
-  if (role === 'image') {
-    const missing = entry.flags.some((f: TraversalResult['entries'][number]['flags'][number]) => f.code === 'missing-alt-text')
-    if (missing) return 'Image.'
-    if (!accessibleName) return ''
-    return `${accessibleName}, image.`
-  }
-  if (isLandmark) return accessibleName ? `${accessibleName}, ${rl} landmark.` : `${rl} landmark.`
-  if (role === 'heading') {
-    const h = level ? `Heading level ${level}` : 'Heading'
-    return accessibleName ? `${h}, ${accessibleName}.` : `${h}.`
-  }
-  if (ROLE_AFTER.has(role)) return accessibleName ? `${accessibleName}, ${rl}.` : `${rl}.`
-  if (FORM_CONTROLS.has(role)) return accessibleName ? `${accessibleName}, ${rl}.` : `${rl}.`
-  if (role === 'separator') return 'Separator.'
-  if (role === 'table') return accessibleName ? `${accessibleName}, table.` : 'Table.'
-  if (role === 'list') return accessibleName ? `${accessibleName}, list.` : 'List.'
-  if (role === 'listitem') return accessibleName || 'List item.'
-  if (accessibleName) return accessibleName
-  return ''
-}
+/** Roles announced after the name (used for display classification). */
+const INTERACTIVE_ROLES = new Set([
+  'button', 'link', 'checkbox', 'radio', 'tab', 'switch',
+  'textbox', 'listbox', 'slider', 'searchbox', 'spinbutton',
+])
 
 function nameDisplay(entry: TraversalResult['entries'][number]): string {
   if (entry.accessibleName) return escapeHtml(entry.accessibleName)
   if (STRUCTURAL_ROLES.has(entry.role) || entry.isLandmark) {
-    return `<span class="name-structural">${escapeHtml(ROLE_LABELS[entry.role] ?? entry.role)}</span>`
+    return `<span class="name-structural">${escapeHtml(formatRole(entry.role))}</span>`
   }
-  if (ROLE_AFTER.has(entry.role) || FORM_CONTROLS.has(entry.role)) {
+  if (INTERACTIVE_ROLES.has(entry.role)) {
     return '<span class="name-missing">missing name</span>'
   }
   return '<span class="name-empty">—</span>'
@@ -726,7 +702,7 @@ function nameDisplay(entry: TraversalResult['entries'][number]): string {
 
 function renderEntry(entry: TraversalResult['entries'][number]): string {
   const hasFlags = entry.flags.length > 0
-  const announcement = formatAnnouncement(entry)
+  const announcement = formatEntryForSpeech(entry)
   return `
     <li class="reading-entry ${hasFlags ? 'has-flag' : ''}">
       <span class="reading-index">${entry.index}</span>

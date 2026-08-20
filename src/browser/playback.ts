@@ -9,109 +9,15 @@
 import type {
   PlaybackConfig,
   PlaybackState,
-  TraversalEntry,
   TraversalResult,
 } from '../core/types.js'
 import type { LocalTTS } from '@vantra-design/local-inference'
+import { formatEntryForSpeech } from '../core/speech.js'
 import { highlightElement, clearHighlights } from './highlighter.js'
 
-/**
- * Format a traversal entry as spoken text, simulating
- * screen reader announcement patterns (modeled after VoiceOver).
- */
-export function formatEntryForSpeech(entry: TraversalEntry): string {
-  const { role, accessibleName, level, isLandmark } = entry
-
-  // Image: check flags to distinguish missing alt from decorative
-  if (role === 'image') {
-    const hasMissingAlt = entry.flags.some(f => f.code === 'missing-alt-text')
-    if (hasMissingAlt) {
-      return 'Image.'
-    }
-    if (!accessibleName) {
-      // Decorative image (alt="")
-      return ''
-    }
-  }
-
-  // Landmark entry
-  if (isLandmark) {
-    const landmarkName = accessibleName ? `${accessibleName}, ` : ''
-    const landmarkRole = formatRole(role)
-    return `${landmarkName}${landmarkRole} landmark.`
-  }
-
-  // Heading
-  if (role === 'heading') {
-    const headingLevel = level ? `Heading level ${level}` : 'Heading'
-    return accessibleName ? `${headingLevel}, ${accessibleName}.` : `${headingLevel}.`
-  }
-
-  // Elements where role is announced after name
-  const ROLE_AFTER = new Set(['button', 'link', 'checkbox', 'radio', 'tab', 'switch'])
-  if (ROLE_AFTER.has(role)) {
-    const displayRole = formatRole(role)
-    return accessibleName ? `${accessibleName}, ${displayRole}.` : `${displayRole}.`
-  }
-
-  // Form controls
-  if (['textbox', 'listbox', 'slider', 'searchbox', 'spinbutton'].includes(role)) {
-    const displayRole = formatRole(role)
-    return accessibleName ? `${accessibleName}, ${displayRole}.` : `${displayRole}.`
-  }
-
-  // Separator
-  if (role === 'separator') {
-    return 'Separator.'
-  }
-
-  // Table
-  if (role === 'table') {
-    return accessibleName ? `${accessibleName}, table.` : 'Table.'
-  }
-
-  // List
-  if (role === 'list') {
-    return accessibleName ? `${accessibleName}, list.` : 'List.'
-  }
-
-  // List item
-  if (role === 'listitem') {
-    return accessibleName || ''
-  }
-
-  // Generic or text
-  if (accessibleName) {
-    return accessibleName
-  }
-
-  return ''
-}
-
-function formatRole(role: string): string {
-  const roleLabels: Record<string, string> = {
-    button: 'button',
-    link: 'link',
-    checkbox: 'checkbox',
-    radio: 'radio button',
-    tab: 'tab',
-    switch: 'switch',
-    textbox: 'edit text',
-    listbox: 'pop-up button',
-    slider: 'slider',
-    searchbox: 'search text field',
-    spinbutton: 'stepper',
-    navigation: 'navigation',
-    main: 'main',
-    banner: 'banner',
-    contentinfo: 'content info',
-    complementary: 'complementary',
-    form: 'form',
-    search: 'search',
-    region: 'region',
-  }
-  return roleLabels[role] ?? role
-}
+// Re-export so existing consumers of `import { formatEntryForSpeech } from './playback'`
+// continue to work. The canonical source is now core/speech.ts.
+export { formatEntryForSpeech } from '../core/speech.js'
 
 /**
  * Controls TTS playback of the traversal sequence.

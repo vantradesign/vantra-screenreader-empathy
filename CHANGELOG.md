@@ -1,5 +1,13 @@
 # @vantra-design/screenreader-empathy
 
+## 0.4.0
+
+### Minor Changes
+
+- `formatEntryForSpeech` and `formatRole` exported from `./core`. Previously only available from the browser entry point, these pure-logic functions are now usable in any environment (Node, extensions, fetch tools) without pulling in `@vantra-design/local-inference`.
+- Demo deduplication: demo app now imports speech formatting from `./core` instead of reimplementing it.
+- Production server: `demo/serve.ts` — minimal zero-dependency Node server for the fetch tool. Serves the built demo with the proxy endpoints for URL fetching and sub-resource loading. Run with `pnpm run serve`.
+
 ## 0.3.0
 
 ### Minor Changes

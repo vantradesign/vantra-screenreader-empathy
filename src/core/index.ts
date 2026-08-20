@@ -7,6 +7,9 @@
 // Main function
 export { analyzeAccessibilityFlow } from './traversal.js'
 
+// Speech text formatting (shared between browser, extension, fetch tool)
+export { formatEntryForSpeech, formatRole } from './speech.js'
+
 // Utilities (useful for advanced consumers)
 export { computeAccessibleName } from './accessible-name.js'
 export { computeReadingOrder } from './reading-order.js'
