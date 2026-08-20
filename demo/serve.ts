@@ -277,5 +277,5 @@ const server = createServer(async (req, res) => {
 })
 
 server.listen(PORT, () => {
-  console.log(`Empathy fetch tool running at http://localhost:${PORT}`)
+  console.warn(`Empathy fetch tool running at http://localhost:${PORT}`)
 })
